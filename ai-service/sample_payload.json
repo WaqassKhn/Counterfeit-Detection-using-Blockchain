@@ -1,0 +1,24 @@
+{
+  "serialId": "AX1001",
+  "manufacturer": "Atlas Corp",
+  "history": [
+    {
+      "role": "Manufacturer",
+      "location": "Factory",
+      "timestamp": 1710000000,
+      "actorAddress": "0x123"
+    },
+    {
+      "role": "Logistics",
+      "location": "Mumbai",
+      "timestamp": 1710003600,
+      "actorAddress": "0x123"
+    },
+    {
+      "role": "Distributor",
+      "location": "Delhi",
+      "timestamp": 1710080000,
+      "actorAddress": "0x123"
+    }
+  ]
+}
