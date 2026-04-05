@@ -339,13 +339,4 @@ VITE_API_URL=http://127.0.0.1:4000
 - role-based login and wallet-based signing
 - ERP and warehouse management system integration
 
-## How to Present This Project
-
-The strongest story for demo day is the layered protection model:
-
-1. blockchain guarantees record immutability
-2. permissioned roles restrict who can write
-3. graph analysis validates business flow
-4. anomaly detection surfaces hidden fraud patterns
-5. customer verification closes the trust loop
 
