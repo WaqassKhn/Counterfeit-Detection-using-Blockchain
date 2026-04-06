@@ -16,47 +16,99 @@ async function callFraudService(payload) {
 
     return await response.json();
   } catch (error) {
-    return buildFallbackAnalysis(payload.history || [], error.message);
+    return buildFallbackAnalysis(payload.history || [], payload.product || {}, error.message);
   }
 }
 
-function buildFallbackAnalysis(history, reason) {
+function buildFallbackAnalysis(history, product, reason) {
   const findings = [];
-  const validOrder = ["Manufacturer", "Logistics", "Distributor", "Retailer"];
+  let failurePoint = null;
+  let lastDepartment = "Manufacturer";
+  let logisticsStarted = false;
+  let firstLogisticsOrigin = "";
+  let finalDistributorDestination = "";
 
-  for (let index = 1; index < history.length; index += 1) {
-    const previous = history[index - 1];
-    const current = history[index];
-    const previousPos = validOrder.indexOf(previous.role);
-    const currentPos = validOrder.indexOf(current.role);
+  history.forEach((event, index) => {
+    if (event.department === "Logistics") {
+      logisticsStarted = true;
+      if (!firstLogisticsOrigin) {
+        firstLogisticsOrigin = event.source;
+        if (!String(event.source || "").toLowerCase().includes("manufacturer") &&
+            event.source !== product.manufacturerName) {
+          findings.push({
+            type: "invalid_logistics_origin",
+            detail: "The first logistics stop must originate from the manufacturer."
+          });
+          failurePoint = failurePoint || { index, location: event.location, eventType: event.eventType };
+        }
+      }
 
-    if (currentPos < previousPos || currentPos - previousPos > 1) {
-      findings.push({
-        type: "invalid_transition",
-        detail: `${previous.role} -> ${current.role} is not allowed`
-      });
+      finalDistributorDestination = event.destination || finalDistributorDestination;
     }
-  }
+
+    if (event.department === "Distributor" && !logisticsStarted) {
+      findings.push({
+        type: "missing_logistics_chain",
+        detail: "Distributor sale recorded before the logistics chain completed."
+      });
+      failurePoint = failurePoint || { index, location: event.location, eventType: event.eventType };
+    }
+
+    if (event.department === "Distributor" && finalDistributorDestination && event.location !== finalDistributorDestination) {
+      findings.push({
+        type: "wrong_distributor_destination",
+        detail: "Distributor retail location does not match the logistics destination."
+      });
+      failurePoint = failurePoint || { index, location: event.location, eventType: event.eventType };
+    }
+
+    if (lastDepartment === "Distributor" && event.department === "Logistics") {
+      findings.push({
+        type: "reverse_transition",
+        detail: "Logistics events cannot occur after the distributor closes the cycle."
+      });
+      failurePoint = failurePoint || { index, location: event.location, eventType: event.eventType };
+    }
+
+    lastDepartment = event.department;
+  });
+
+  const nodeColors = {
+    Manufacturer: "#2563eb",
+    Logistics: "#f97316",
+    Distributor: "#10b981"
+  };
 
   const nodes = history.map((event, index) => ({
-    id: `${event.role}-${index}`,
-    label: `${event.role} ${event.location}`
+    id: `${index}`,
+    label: event.department,
+    color: nodeColors[event.department] || "#64748b",
+    details: event
   }));
-  const edges = history.slice(1).map((event, index) => ({
-    source: `${history[index].role}-${index}`,
-    target: `${event.role}-${index + 1}`,
-    suspicious: findings.length > 0
-  }));
-  const riskScores = {};
 
+  const edges = history.slice(1).map((event, index) => ({
+    source: `${index}`,
+    target: `${index + 1}`,
+    suspicious: Boolean(failurePoint && (failurePoint.index === index || failurePoint.index === index + 1)),
+    details: {
+      source: event.source,
+      destination: event.destination,
+      timestamp: event.timestamp,
+      eventType: event.eventType
+    }
+  }));
+
+  const riskScores = {};
   history.forEach((event) => {
-    riskScores[event.location] = findings.length ? 0.72 : 0.08;
+    const key = event.destination || event.location;
+    riskScores[key] = findings.length ? 0.78 : 0.12;
   });
 
   return {
     findings,
     severity: findings.length ? "high" : "low",
     authenticityStatus: findings.length ? "suspicious" : "verified",
+    failurePoint,
     graph: { nodes, edges },
     riskScores,
     engine: "fallback",
@@ -67,4 +119,3 @@ function buildFallbackAnalysis(history, reason) {
 module.exports = {
   callFraudService
 };
-

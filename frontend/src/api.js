@@ -1,11 +1,20 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:4000";
 
+function authHeaders(token) {
+  return token
+    ? {
+        Authorization: `Bearer ${token}`
+      }
+    : {};
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${API_URL}${path}`, {
+    ...options,
     headers: {
-      "Content-Type": "application/json"
-    },
-    ...options
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
   });
 
   const data = await response.json();
@@ -17,16 +26,45 @@ async function request(path, options = {}) {
   return data;
 }
 
-export function registerProduct(payload) {
-  return request("/product/register", {
+export function login(payload) {
+  return request("/auth/login", {
     method: "POST",
     body: JSON.stringify(payload)
   });
 }
 
-export function transferProduct(payload) {
-  return request("/product/transfer", {
+export function fetchActors() {
+  return request("/auth/actors");
+}
+
+export function registerProduct(payload, token) {
+  return request("/product/register", {
     method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function addLogisticsStop(payload, token) {
+  return request("/product/logistics/stop", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function closeLogisticsCycle(payload, token) {
+  return request("/product/logistics/complete", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function recordRetail(payload, token) {
+  return request("/product/distributor/retail", {
+    method: "POST",
+    headers: authHeaders(token),
     body: JSON.stringify(payload)
   });
 }
@@ -43,3 +81,10 @@ export function fetchGraph() {
   return request("/fraud/graph");
 }
 
+export function fetchNfcTags() {
+  return request("/nfc/tags");
+}
+
+export function readNfcTag(tagId) {
+  return request(`/nfc/read/${tagId}`);
+}

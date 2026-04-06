@@ -1,342 +1,387 @@
 # Atlas Corp Counterfeit Prevention Network
 
-Atlas Corp needs a trusted way to prove that spare parts moving through its supply chain are genuine. This project delivers a permissioned blockchain supply-chain tracking platform that records every product movement on-chain, validates that movement against expected business rules, detects suspicious behavior, and exposes verification and fraud-monitoring interfaces for both customers and internal teams.
+Atlas Corp needs a supply-chain system that does two things at the same time: keep a tamper-resistant lifecycle record for each spare part, and make suspicious movement visible before a fake part reaches a customer.
 
-The solution is organized into five core modules:
+This project is a permissioned blockchain-based tracking platform with role-gated operational portals, multi-stop logistics support, dummy NFC extraction, anomaly detection, and a customer-facing verification flow.
 
-1. `frontend/` - React + Vite + Tailwind interface with product verification, transfer recording, and fraud intelligence pages
-2. `backend/` - Node.js + Express orchestration API that talks to the blockchain and fraud services
-3. `blockchain/` - Hardhat + Solidity permissioned supply-chain contract
-4. `ai-service/` - Flask service that performs rule-based anomaly checks, graph validation, and lightweight ML scoring
-5. `README.md` - full project guide, architecture, setup, and demo flow
+## What The System Does
 
-## Problem Statement
+The system tracks each product from manufacturing to final retail completion using a private Ethereum-style network.
 
-Atlas Corp is facing counterfeit spare parts entering its supply chain. Customers may receive fake components from unauthorized suppliers, skipped intermediaries, or manipulated movement records.
+Core outcomes:
 
-This system solves that by:
+- manufacturer registers a product with serial number, batch number, and manufacture date
+- logistics can record multiple transit stops across cities before handing off to a distributor
+- distributor records final retail completion tied to its own location
+- customers can verify the full lifecycle of a product by serial number
+- Atlas can detect suspicious transitions, broken logistics flows, and endpoint mismatches
 
-- allowing only approved supply-chain actors to write lifecycle events
-- storing an immutable product history on a private Ethereum network
-- checking product movement against valid business transitions
-- flagging unusual movement patterns like duplicate serials or impossible route jumps
-- giving customers a verification portal to inspect authenticity
-- giving internal teams a fraud dashboard to monitor risk trends
+## Core Modules
 
-## High-Level Architecture
+1. `frontend/`
+React + Vite + Tailwind user interface with:
+- public authenticity verification
+- role-based login
+- manufacturer portal
+- logistics portal
+- distributor portal
+- fraud intelligence dashboard
 
-```text
-Frontend (React)
-   |
-   v
-Backend API (Express)
-   |---------------------> Fraud Service (Flask + ML + graph rules)
-   |
-   v
-Private Ethereum Network (Hardhat / EVM)
-   |
-   v
-Smart Contract Ledger (immutable product lifecycle)
-```
+2. `backend/`
+Node.js + Express orchestration layer that:
+- validates role-based actions
+- signs blockchain transactions
+- exposes auth, product, fraud, and NFC endpoints
+- computes or retrieves fraud findings
 
-## Core Business Flow
+3. `blockchain/`
+Hardhat + Solidity private smart-contract layer that stores:
+- product metadata
+- append-only lifecycle events
+- authorized writer addresses
+
+4. `ai-service/`
+Flask service for fraud analysis, with rule-based and ML-ready anomaly detection support.
+
+## Updated Business Flow
 
 ```text
 Manufacturer registers product
         |
         v
-Logistics records shipment
+Logistics records stop 1
         |
         v
-Distributor receives product
+Logistics records stop 2
         |
         v
-Retailer receives product
+Logistics records stop N
         |
         v
-Customer verifies product
+Logistics closes cycle at authorized distributor
+        |
+        v
+Distributor records retail delivery
+        |
+        v
+Customer verifies authenticity
 ```
 
-Each transfer becomes:
+This means the logistics chain is no longer a single step. It can span multiple transit locations before reaching a distributor.
 
-1. a blockchain transaction
-2. a backend validation event
-3. an anomaly detection request
-4. a graph-analysis update
-5. a dashboard data refresh
+## Roles And Access Model
 
-## Permissioned Roles
+The application now uses role-gated dummy accounts in the backend.
+
+Roles:
 
 - `Manufacturer`
 - `Logistics`
 - `Distributor`
-- `Retailer`
-- `Customer` (read only)
+- `Customer` (read-only, no login required)
 
-Only authorized admin-approved actor wallets can register products or record transfers.
+Only authenticated actors can access operational forms.
 
-## Project Structure
+### Dummy Accounts
 
-```text
-EDAI/
-├─ README.md
-├─ blockchain/
-├─ backend/
-├─ ai-service/
-└─ frontend/
-```
+Defined in [actors.js](I:\SeM_6\EDAI\backend\src\data\actors.js):
 
-## Module Responsibilities
+- `manufacturer1 / atlas-manufacturer`
+- `logistics1 / atlas-logistics`
+- `logistics2 / atlas-logistics`
+- `distributor1 / atlas-distributor`
+- `distributor2 / atlas-distributor`
 
-### Blockchain Layer
+These accounts are for local demo use. They are intended to be replaced later with wallet-based or identity-based auth.
 
-Purpose:
+## Smart Contract Model
 
-- register new products
-- record product transfers
-- maintain immutable event history
-- prevent tampering with records
+The contract is in [AtlasSupplyChain.sol](I:\SeM_6\EDAI\blockchain\contracts\AtlasSupplyChain.sol).
 
-Smart contract functions:
-
-- `registerProduct(serialId, manufacturer)`
-- `transferProduct(serialId, role, location)`
-- `getProductHistory(serialId)`
-
-Blockchain data model:
+### Product Data Stored On Chain
 
 ```text
 Product
  ├ serialId
- ├ manufacturer
+ ├ manufacturerName
+ ├ batchNumber
+ ├ manufactureDate
  ├ exists
  └ events[]
+```
 
-Event
- ├ role
+### Event Data Stored On Chain
+
+```text
+EventRecord
+ ├ department
+ ├ eventType
  ├ location
+ ├ source
+ ├ destination
+ ├ actorId
+ ├ notes
  ├ timestamp
  └ actor
 ```
 
-### Backend API
+This is append-only. Existing lifecycle events are not edited. New events are added to the history.
 
-Purpose:
+## Main Contract Functions
 
-- validate API payloads
-- submit blockchain transactions
-- retrieve on-chain history
-- trigger fraud analysis
-- aggregate dashboard outputs
+- `registerProduct(serialId, manufacturerName, batchNumber, manufactureDate)`
+- `addLifecycleEvent(serialId, department, eventType, location, source, destination, actorId, notes)`
+- `getProduct(serialId)`
+- `getProductHistory(serialId)`
+- `setAuthorizedActor(actor, authorized)`
 
-Endpoints:
+## API Overview
+
+### Auth
+
+- `POST /auth/login`
+- `GET /auth/actors`
+
+### Product Operations
 
 - `POST /product/register`
-- `POST /product/transfer`
+  - manufacturer only
+- `POST /product/logistics/stop`
+  - logistics only
+- `POST /product/logistics/complete`
+  - logistics only
+  - final destination must match an authorized distributor
+- `POST /product/distributor/retail`
+  - distributor only
 - `GET /product/:serialId`
+  - public verification response
+
+### Fraud And Monitoring
+
 - `GET /fraud/alerts`
 - `GET /fraud/graph`
-- `GET /health`
 
-### Fraud Detection Layer
+### NFC Simulation
 
-Signals evaluated:
+- `GET /nfc/tags`
+- `GET /nfc/read/:tagId`
 
-- duplicate serial usage
-- invalid graph transitions
-- unauthorized actors
-- impossible location jumps
-- abnormal transfer timing
-- high scan / transfer frequency
+## Operational Rules
 
-Detection style:
+### Manufacturer Portal
 
-- rule-based checks for explainability
-- graph validation using supply-chain transitions
-- `IsolationForest` when available, with a deterministic fallback if Python ML libraries are missing
+Manufacturer is asked for:
+- serial number
+- batch number
+- date of manufacture
 
-### Fraud Intelligence Dashboard
+### Logistics Portal
 
-Dashboard widgets:
+Logistics is asked for:
+- serial number
+- origin
+- destination
+- optional notes
 
-- suspicious product table
-- fraud alerts trend chart
-- supply-chain graph summary
-- participant risk score table
+Rules:
+- first logistics origin should be the manufacturer
+- logistics can create multiple stops
+- logistics cycle must end at an authorized distributor location
+- a first-hop shortcut can prefill manufacturer as source and a distributor as destination
+- that shortcut only appears before the first logistics hop is recorded
 
-### Customer Verification
+### Distributor Portal
 
-Verification result includes:
+Distributor is asked for:
+- customer name
+- serial number
+- date of retail
 
-- manufacturer name
-- lifecycle event trail
-- observed supply-chain path
-- anomaly warnings
-- authenticity status
+Distributor location is taken from the logged-in distributor account, not typed manually.
 
-## Smart Contract Design
+## NFC Simulation
 
-### Main Functions
+The frontend includes a dummy NFC read flow.
 
-#### `registerProduct(string serialId, string manufacturer)`
+What it does now:
+- user selects a mock tag
+- frontend calls backend NFC endpoint
+- backend returns dummy serial and manufacturing metadata
+- forms are prefilled from that response
 
-Called by an authorized writer. It creates the product record and stores the first lifecycle event as `Manufacturer`.
+What it is designed for later:
+- replace the dummy read action with an actual NFC reader integration
+- keep the frontend/backend contract shape mostly unchanged
 
-#### `transferProduct(string serialId, string role, string location)`
-
-Called by an authorized writer when custody changes or a movement milestone is reached. It appends a new event to the product history.
-
-#### `getProductHistory(string serialId)`
-
-Read-only function used by the backend and frontend verification interface.
+Dummy NFC data is defined in [nfcTags.js](I:\SeM_6\EDAI\backend\src\data\nfcTags.js).
 
 ## Fraud Detection Logic
 
-Valid path:
+The current fallback fraud layer checks for:
 
-```text
-Manufacturer -> Logistics -> Distributor -> Retailer
-```
+- invalid first logistics origin
+- distributor action before logistics chain exists
+- distributor location mismatch with logistics destination
+- reverse lifecycle transitions
+- suspicious endpoint behavior
 
-Examples flagged:
+It also returns:
+- authenticity verdict
+- failure point in the lifecycle
+- graph nodes and edges
+- risk scores per endpoint
 
-- `Manufacturer -> Retailer`
-- `Distributor -> Manufacturer`
-- `Unknown -> Distributor`
+Fraud logic entry point:
+[fraudService.js](I:\SeM_6\EDAI\backend\src\services\fraudService.js)
 
-Rule-based checks:
+## Frontend Experience
 
-- invalid transitions
-- same product scanned too many times in a short window
-- unrealistic movement between named cities
+### Verify Authenticity
 
-## Frontend Pages
+Public page that allows:
+- serial lookup
+- dummy NFC-assisted lookup
+- visual chain of custody
+- hover details on lifecycle nodes
+- visible failure point when suspicious activity exists
 
-### Product Verification Page
+### Authorized Access
 
-For customers and auditors:
+Login page for dummy role-based actors.
 
-- enter serial number
-- fetch lifecycle history
-- show authenticity verdict
-- show fraud warnings
+### Manufacturer / Logistics / Distributor Portal
 
-### Supply Chain Event Page
+Single protected portal that changes based on logged-in role.
 
-For authorized participants:
+### Intelligence Dashboard
 
-- register product form
-- transfer event form
-- transaction feedback
-
-### Fraud Intelligence Dashboard
-
-For Atlas operations and fraud teams:
-
-- suspicious products table
+Shows:
+- authentic vs suspicious counts
 - fraud trend chart
-- graph summary
-- entity risk table
+- failure points
+- suspicious products
+- risk scores
+- network-edge summaries
 
-## Local Setup
+## Local Development Setup
 
-Open four terminals.
+This project requires a redeploy if the contract changes. The current codebase includes an updated ABI and contract interface, so if you were running an older version you must compile and deploy again.
 
-### Terminal 1: Blockchain network
+### 1. Start Hardhat Node
 
-```bash
-cd blockchain
+```powershell
+cd I:\SeM_6\EDAI\blockchain
 npm install
 npx hardhat node
 ```
 
-In another blockchain terminal:
+### 2. Configure Blockchain Environment
 
-```bash
-cd blockchain
-copy .env.example .env
-npm run deploy
-```
-
-Update the deployed contract address in `backend/.env`.
-
-### Terminal 2: AI fraud service
-
-```bash
-cd ai-service
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-python app.py
-```
-
-### Terminal 3: Backend API
-
-```bash
-cd backend
-npm install
-copy .env.example .env
-npm run dev
-```
-
-### Terminal 4: Frontend
-
-```bash
-cd frontend
-npm install
-copy .env.example .env
-npm run dev
-```
-
-## Environment Variables
-
-### `blockchain/.env`
+Create `blockchain/.env` from [blockchain/.env.example](I:\SeM_6\EDAI\blockchain\.env.example):
 
 ```env
-PRIVATE_KEY=your_hardhat_account_private_key
+PRIVATE_KEY=PASTE_HARDHAT_ACCOUNT_0_PRIVATE_KEY
 RPC_URL=http://127.0.0.1:8545
 ```
 
-### `backend/.env`
+### 3. Compile And Deploy Contract
+
+```powershell
+cd I:\SeM_6\EDAI\blockchain
+npx hardhat compile
+npm run deploy
+```
+
+Copy the new deployed address.
+
+### 4. Configure Backend Environment
+
+Create `backend/.env` from [backend/.env.example](I:\SeM_6\EDAI\backend\.env.example):
 
 ```env
 PORT=4000
 RPC_URL=http://127.0.0.1:8545
-PRIVATE_KEY=your_hardhat_account_private_key
-CONTRACT_ADDRESS=deployed_contract_address
+PRIVATE_KEY=PASTE_HARDHAT_ACCOUNT_0_PRIVATE_KEY
+CONTRACT_ADDRESS=PASTE_NEW_DEPLOYED_CONTRACT_ADDRESS
 FRAUD_SERVICE_URL=http://127.0.0.1:5000
 CORS_ORIGIN=http://localhost:5173
+JWT_SECRET=atlas-demo-secret
 ```
 
-### `frontend/.env`
+### 5. Start AI Service
 
-```env
-VITE_API_URL=http://127.0.0.1:4000
+```powershell
+cd I:\SeM_6\EDAI\ai-service
+python -m venv .venv
+Set-ExecutionPolicy -Scope Process Bypass
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python app.py
+```
+
+### 6. Start Backend
+
+```powershell
+cd I:\SeM_6\EDAI\backend
+npm install
+npm run dev
+```
+
+### 7. Start Frontend
+
+```powershell
+cd I:\SeM_6\EDAI\frontend
+npm install
+npm run dev
 ```
 
 ## Demo Walkthrough
 
-1. Register a product `AX1001` from the Event page.
-2. Transfer it through `Logistics`, `Distributor`, and `Retailer`.
-3. Open the Verification page and search `AX1001`.
-4. Observe a healthy product lifecycle with no warnings.
-5. Submit a suspicious path like `Manufacturer -> Retailer` for another serial.
-6. Open the Dashboard page to see the alert, graph issue, and elevated risk score.
+### Clean Path
 
-## Security and Integrity Features
+1. Login as `manufacturer1`
+2. Register `AX1001` with batch and manufacture date
+3. Login as `logistics1`
+4. Add multi-stop logistics entries such as:
+   - Mumbai -> Delhi
+   - Delhi -> Goa
+5. Close the logistics cycle at authorized distributor `TechSupply Distribution`
+6. Login as `distributor1`
+7. Record retail completion
+8. Open verification page and inspect the visual lifecycle graph
 
-- Immutable event log through blockchain storage
-- Restricted writes through admin-managed actor authorization
-- Backend input validation to prevent malformed data
-- AI-driven alerting for suspicious behavior
-- Transparent customer verification experience
+### Suspicious Path
+
+1. Register a product
+2. Skip or break the expected logistics/distributor flow
+3. Check verification and dashboard
+4. Observe failure point and suspicious edge highlights
+
+## Important Notes
+
+- Contract schema has changed from the earlier simpler `role/location` event model.
+- If the backend is using an old `CONTRACT_ADDRESS`, calls will fail.
+- Restarting Hardhat resets the local chain, which means you must redeploy and update the backend contract address again.
+
+## Key Files
+
+- Smart contract: [AtlasSupplyChain.sol](I:\SeM_6\EDAI\blockchain\contracts\AtlasSupplyChain.sol)
+- Role data: [actors.js](I:\SeM_6\EDAI\backend\src\data\actors.js)
+- Auth middleware: [auth.js](I:\SeM_6\EDAI\backend\src\middleware\auth.js)
+- Product controller: [productController.js](I:\SeM_6\EDAI\backend\src\controllers\productController.js)
+- Fraud service: [fraudService.js](I:\SeM_6\EDAI\backend\src\services\fraudService.js)
+- Verify page: [VerifyPage.jsx](I:\SeM_6\EDAI\frontend\src\pages\VerifyPage.jsx)
+- Portal page: [PortalPage.jsx](I:\SeM_6\EDAI\frontend\src\pages\PortalPage.jsx)
+- Dashboard page: [DashboardPage.jsx](I:\SeM_6\EDAI\frontend\src\pages\DashboardPage.jsx)
 
 ## Future Improvements
 
+- move role enforcement fully on-chain with distinct writer wallets
+- persist fraud intelligence in a database instead of memory
+- replace dummy NFC with actual reader integration
+- bind each operational actor to a real keypair or wallet signer
+- introduce production-grade identity and audit controls
 - QR-code based product verification
-- persistent database for alerts and historical analytics
 - stronger geolocation and time-series anomaly modeling
-- role-based login and wallet-based signing
 - ERP and warehouse management system integration
-
-

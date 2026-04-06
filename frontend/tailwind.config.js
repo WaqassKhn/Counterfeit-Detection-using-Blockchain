@@ -4,12 +4,13 @@ export default {
     extend: {
       colors: {
         atlas: {
-          ink: "#0F172A",
-          steel: "#334155",
-          sky: "#0EA5E9",
-          ember: "#EA580C",
-          cream: "#F8FAFC",
-          mint: "#10B981"
+          ink: "#0f172a",
+          steel: "#475569",
+          sky: "#3b82f6",
+          ember: "#ef4444",
+          cream: "#f8fafc",
+          mint: "#10b981",
+          ocean: "#0f766e"
         }
       },
       fontFamily: {
@@ -20,4 +21,3 @@ export default {
   },
   plugins: []
 };
-

@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import {
+  Area,
+  AreaChart,
   CartesianGrid,
-  Line,
-  LineChart,
+  Cell,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -12,8 +15,10 @@ import { fetchAlerts, fetchGraph } from "../api";
 import SectionTitle from "../components/SectionTitle";
 import StatCard from "../components/StatCard";
 
+const authColors = ["#10b981", "#ef4444"];
+
 export default function DashboardPage() {
-  const [alertsData, setAlertsData] = useState({ alerts: [], trend: [], riskScores: [] });
+  const [alertsData, setAlertsData] = useState({ alerts: [], trend: [], riskScores: [], authenticityStats: { authentic: 0, suspicious: 0 } });
   const [graph, setGraph] = useState({ nodes: [], edges: [] });
   const [error, setError] = useState("");
 
@@ -31,122 +36,116 @@ export default function DashboardPage() {
     load();
   }, []);
 
+  const authChartData = [
+    { name: "Authentic", value: alertsData.authenticityStats.authentic },
+    { name: "Suspicious", value: alertsData.authenticityStats.suspicious }
+  ];
+
   return (
     <div className="space-y-6">
       <SectionTitle
         eyebrow="Fraud Intelligence"
-        title="See counterfeit risk across the Atlas network"
-        body="This dashboard combines graph validation, anomaly detection, and participant risk scoring to spotlight suspicious supply-chain behavior."
+        title="Operational integrity, failure points, and authenticity mix"
+        body="The dashboard separates authentic versus suspicious products, highlights failure points, and visualizes where lifecycle breakdowns occur."
       />
 
       {error ? <p className="text-red-600">{error}</p> : null}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Suspicious Products" value={alertsData.alerts.length} accent="ember" />
-        <StatCard label="Graph Nodes" value={graph.nodes.length} />
-        <StatCard label="Risk Entities" value={alertsData.riskScores.length} accent="mint" />
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatCard label="Authentic" value={alertsData.authenticityStats.authentic} accent="mint" />
+        <StatCard label="Suspicious" value={alertsData.authenticityStats.suspicious} accent="ember" />
+        <StatCard label="Failure Points" value={alertsData.alerts.filter((alert) => alert.failurePoint).length} accent="sky" />
+        <StatCard label="Tracked Edges" value={graph.edges.length} accent="slate" />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <section className="rounded-[28px] bg-white/80 p-6 shadow-lg">
-          <p className="text-sm uppercase tracking-[0.2em] text-atlas-steel">Fraud Trend</p>
+      <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <section className="rounded-[30px] bg-white/80 p-6 shadow-lg">
+          <p className="text-sm uppercase tracking-[0.25em] text-atlas-steel">Authenticity Distribution</p>
           <div className="mt-4 h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={alertsData.trend}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis allowDecimals={false} />
+              <PieChart>
+                <Pie data={authChartData} dataKey="value" nameKey="name" innerRadius={70} outerRadius={100} paddingAngle={4}>
+                  {authChartData.map((entry, index) => (
+                    <Cell fill={authColors[index % authColors.length]} key={entry.name} />
+                  ))}
+                </Pie>
                 <Tooltip />
-                <Line dataKey="count" stroke="#ea580c" strokeWidth={3} />
-              </LineChart>
+              </PieChart>
             </ResponsiveContainer>
           </div>
         </section>
 
-        <section className="rounded-[28px] bg-white/80 p-6 shadow-lg">
-          <p className="text-sm uppercase tracking-[0.2em] text-atlas-steel">Entity Risk Scores</p>
-          <div className="mt-4 space-y-3">
-            {alertsData.riskScores.length ? (
-              alertsData.riskScores.map((item) => (
-                <div className="rounded-2xl border border-slate-200 p-4" key={item.entity}>
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="font-semibold">{item.entity}</span>
-                    <span className="text-sm">{item.riskScore}</span>
-                  </div>
-                  <div className="mt-3 h-2 rounded-full bg-slate-200">
-                    <div
-                      className="h-2 rounded-full bg-atlas-ember"
-                      style={{ width: `${Math.min(item.riskScore * 100, 100)}%` }}
-                    />
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-atlas-steel">No risk signals available yet.</p>
-            )}
+        <section className="rounded-[30px] bg-white/80 p-6 shadow-lg">
+          <p className="text-sm uppercase tracking-[0.25em] text-atlas-steel">Suspicion Trend</p>
+          <div className="mt-4 h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={alertsData.trend}>
+                <defs>
+                  <linearGradient id="trendFill" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.7} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="day" />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Area dataKey="count" fill="url(#trendFill)" stroke="#ef4444" strokeWidth={3} type="monotone" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </section>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-[28px] bg-white/80 p-6 shadow-lg">
-          <p className="text-sm uppercase tracking-[0.2em] text-atlas-steel">Suspicious Product List</p>
-          <div className="mt-4 overflow-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-atlas-steel">
-                  <th className="pb-3">Serial ID</th>
-                  <th className="pb-3">Anomaly Type</th>
-                  <th className="pb-3">Last Location</th>
-                  <th className="pb-3">Timestamp</th>
-                </tr>
-              </thead>
-              <tbody>
-                {alertsData.alerts.length ? (
-                  alertsData.alerts.map((alert) => (
-                    <tr className="border-b border-slate-100" key={alert.serialId}>
-                      <td className="py-3">{alert.serialId}</td>
-                      <td className="py-3">{alert.anomalyTypes.join(", ")}</td>
-                      <td className="py-3">{alert.lastLocation}</td>
-                      <td className="py-3">{new Date(alert.timestamp).toLocaleString()}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td className="py-4 text-atlas-steel" colSpan="4">
-                      No suspicious products yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="rounded-[30px] bg-white/80 p-6 shadow-lg">
+          <SectionTitle eyebrow="Failure Analysis" title="Where suspicious activity was detected" body="Each flagged product includes the lifecycle point where the system first identified a path violation or anomaly." />
+          <div className="space-y-3">
+            {alertsData.alerts.length ? alertsData.alerts.map((alert) => (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4" key={alert.serialId}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="font-semibold text-red-700">{alert.serialId}</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-red-500">{alert.severity}</p>
+                </div>
+                <p className="mt-2 text-sm text-red-700">{alert.anomalyTypes.join(", ")}</p>
+                <p className="mt-1 text-sm text-red-700/80">Failure point: {alert.failurePoint ? `${alert.failurePoint.eventType} at ${alert.failurePoint.location}` : "Not available"}</p>
+              </div>
+            )) : <p className="text-sm text-atlas-steel">No suspicious products yet.</p>}
           </div>
         </section>
 
-        <section className="rounded-[28px] bg-slate-950 p-6 text-white shadow-lg">
-          <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Supply Chain Graph Summary</p>
-          <div className="mt-4 space-y-3">
-            {graph.edges.length ? (
-              graph.edges.map((edge, index) => (
-                <div
-                  className={`rounded-2xl p-4 ${edge.suspicious ? "bg-red-500/20 text-red-200" : "bg-white/10 text-white"}`}
-                  key={`${edge.source}-${edge.target}-${index}`}
-                >
-                  <p>
-                    {edge.source} -&gt; {edge.target}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-300">
-                    {edge.suspicious ? "Suspicious edge highlighted by graph validation" : "Approved movement"}
-                  </p>
+        <section className="rounded-[30px] bg-white/80 p-6 shadow-lg">
+          <SectionTitle eyebrow="Risk Scores" title="Distribution endpoints under pressure" body="Risk scores rise when routes end in suspicious destinations or break sequence rules." />
+          <div className="space-y-3">
+            {alertsData.riskScores.length ? alertsData.riskScores.map((item) => (
+              <div className="rounded-2xl border border-slate-200 p-4" key={item.entity}>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="font-semibold">{item.entity}</span>
+                  <span className="text-sm">{item.riskScore}</span>
                 </div>
-              ))
-            ) : (
-              <p className="text-sm text-slate-300">The graph will populate after products are registered and moved.</p>
-            )}
+                <div className="mt-3 h-2 rounded-full bg-slate-200">
+                  <div className="h-2 rounded-full bg-atlas-ember" style={{ width: `${Math.min(item.riskScore * 100, 100)}%` }} />
+                </div>
+              </div>
+            )) : <p className="text-sm text-atlas-steel">No risk signals available yet.</p>}
           </div>
         </section>
       </div>
+
+      <section className="rounded-[30px] bg-white/80 p-6 shadow-lg">
+        <SectionTitle eyebrow="Network View" title="Suspicious path edges across products" body="Each card represents a recorded transition. Red cards indicate a suspicious edge in the lifecycle graph." />
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {graph.edges.length ? graph.edges.map((edge, index) => (
+            <div className={`rounded-2xl border p-4 shadow-sm ${edge.suspicious ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50"}`} key={`${edge.serialId}-${edge.source}-${edge.target}-${index}`}>
+              <p className="text-xs uppercase tracking-[0.2em] text-atlas-steel">{edge.serialId}</p>
+              <p className="mt-2 text-sm font-semibold text-atlas-ink">{edge.details?.source || edge.source} → {edge.details?.destination || edge.target}</p>
+              <p className="mt-2 text-sm text-atlas-steel">Event: {edge.details?.eventType || "Lifecycle step"}</p>
+              <p className="mt-1 text-sm text-atlas-steel">Time: {edge.details?.timestamp ? new Date(edge.details.timestamp * 1000).toLocaleString() : "Unknown"}</p>
+              <p className={`mt-3 text-sm font-semibold ${edge.suspicious ? "text-red-600" : "text-emerald-600"}`}>{edge.suspicious ? "Suspicious edge" : "Approved edge"}</p>
+            </div>
+          )) : <p className="text-sm text-atlas-steel">The graph will populate once products move through the network.</p>}
+        </div>
+      </section>
     </div>
   );
 }
-

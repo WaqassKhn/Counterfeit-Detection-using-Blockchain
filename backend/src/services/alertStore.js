@@ -1,43 +1,66 @@
 class AlertStore {
   constructor() {
-    this.alerts = [];
-    this.graph = {
-      nodes: [],
-      edges: []
-    };
-    this.riskScores = {};
+    this.products = {};
   }
 
   update(serialId, analysis, history) {
-    const findings = analysis.findings || [];
-    const latestEvent = history.events[history.events.length - 1];
-
-    this.alerts = this.alerts.filter((item) => item.serialId !== serialId);
-
-    if (findings.length) {
-      this.alerts.unshift({
-        serialId,
-        anomalyTypes: findings.map((finding) => finding.type),
-        lastLocation: latestEvent?.location || "Unknown",
-        timestamp: new Date().toISOString(),
-        severity: analysis.severity || "medium"
-      });
-    }
-
-    this.graph = analysis.graph || this.graph;
-    this.riskScores = analysis.riskScores || this.riskScores;
+    this.products[serialId] = {
+      serialId,
+      analysis,
+      history,
+      updatedAt: new Date().toISOString()
+    };
   }
 
   getAlerts() {
-    return this.alerts;
+    return Object.values(this.products)
+      .filter((item) => (item.analysis.findings || []).length)
+      .map((item) => ({
+        serialId: item.serialId,
+        anomalyTypes: item.analysis.findings.map((finding) => finding.type),
+        lastLocation: item.history.events[item.history.events.length - 1]?.location || "Unknown",
+        timestamp: item.updatedAt,
+        severity: item.analysis.severity || "medium",
+        failurePoint: item.analysis.failurePoint || null
+      }));
   }
 
   getGraph() {
-    return this.graph;
+    const nodes = [];
+    const edges = [];
+
+    Object.values(this.products).forEach((item) => {
+      (item.analysis.graph?.nodes || []).forEach((node) => {
+        nodes.push({
+          ...node,
+          id: `${item.serialId}-${node.id}`,
+          serialId: item.serialId
+        });
+      });
+
+      (item.analysis.graph?.edges || []).forEach((edge) => {
+        edges.push({
+          ...edge,
+          source: `${item.serialId}-${edge.source}`,
+          target: `${item.serialId}-${edge.target}`,
+          serialId: item.serialId
+        });
+      });
+    });
+
+    return { nodes, edges };
   }
 
   getRiskScores() {
-    return Object.entries(this.riskScores).map(([entity, riskScore]) => ({
+    const merged = {};
+
+    Object.values(this.products).forEach((item) => {
+      Object.entries(item.analysis.riskScores || {}).forEach(([entity, score]) => {
+        merged[entity] = Math.max(merged[entity] || 0, score);
+      });
+    });
+
+    return Object.entries(merged).map(([entity, riskScore]) => ({
       entity,
       riskScore
     }));
@@ -46,17 +69,27 @@ class AlertStore {
   getTrend() {
     const buckets = {};
 
-    for (const alert of this.alerts) {
-      const key = alert.timestamp.slice(0, 7);
+    this.getAlerts().forEach((alert) => {
+      const key = alert.timestamp.slice(0, 10);
       buckets[key] = (buckets[key] || 0) + 1;
-    }
+    });
 
-    return Object.entries(buckets).map(([month, count]) => ({
-      month,
-      count
-    }));
+    return Object.entries(buckets).map(([day, count]) => ({ day, count }));
+  }
+
+  getAuthenticityStats() {
+    const stats = { authentic: 0, suspicious: 0 };
+
+    Object.values(this.products).forEach((item) => {
+      if (item.analysis.authenticityStatus === "verified") {
+        stats.authentic += 1;
+      } else {
+        stats.suspicious += 1;
+      }
+    });
+
+    return stats;
   }
 }
 
 module.exports = new AlertStore();
-

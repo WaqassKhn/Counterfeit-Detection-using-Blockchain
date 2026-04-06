@@ -1,5 +1,3 @@
-const allowedRoles = ["Manufacturer", "Logistics", "Distributor", "Retailer"];
-
 function assertString(value, fieldName) {
   if (!value || typeof value !== "string" || !value.trim()) {
     const error = new Error(`${fieldName} is required`);
@@ -10,24 +8,24 @@ function assertString(value, fieldName) {
 
 function validateRegisterPayload(body) {
   assertString(body.serialId, "serialId");
-  assertString(body.manufacturer, "manufacturer");
+  assertString(body.batchNumber, "batchNumber");
+  assertString(body.manufactureDate, "manufactureDate");
 }
 
-function validateTransferPayload(body) {
+function validateLogisticsPayload(body) {
   assertString(body.serialId, "serialId");
-  assertString(body.role, "role");
-  assertString(body.location, "location");
+  assertString(body.origin, "origin");
+  assertString(body.destination, "destination");
+}
 
-  if (!allowedRoles.includes(body.role)) {
-    const error = new Error(`role must be one of: ${allowedRoles.join(", ")}`);
-    error.statusCode = 400;
-    throw error;
-  }
+function validateDistributorPayload(body) {
+  assertString(body.serialId, "serialId");
+  assertString(body.customerName, "customerName");
+  assertString(body.dateOfRetail, "dateOfRetail");
 }
 
 module.exports = {
-  allowedRoles,
   validateRegisterPayload,
-  validateTransferPayload
+  validateLogisticsPayload,
+  validateDistributorPayload
 };
-

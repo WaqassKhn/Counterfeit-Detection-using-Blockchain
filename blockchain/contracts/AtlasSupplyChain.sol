@@ -5,15 +5,22 @@ contract AtlasSupplyChain {
     address public owner;
 
     struct EventRecord {
-        string role;
+        string department;
+        string eventType;
         string location;
+        string source;
+        string destination;
+        string actorId;
+        string notes;
         uint256 timestamp;
         address actor;
     }
 
     struct Product {
         string serialId;
-        string manufacturer;
+        string manufacturerName;
+        string batchNumber;
+        string manufactureDate;
         bool exists;
         EventRecord[] events;
     }
@@ -21,8 +28,20 @@ contract AtlasSupplyChain {
     mapping(string => Product) private products;
     mapping(address => bool) public authorizedActors;
 
-    event ProductRegistered(string indexed serialId, string manufacturer, address indexed actor);
-    event ProductTransferred(string indexed serialId, string role, string location, address indexed actor);
+    event ProductRegistered(
+        string indexed serialId,
+        string manufacturerName,
+        string batchNumber,
+        string manufactureDate,
+        address indexed actor
+    );
+    event LifecycleEventRecorded(
+        string indexed serialId,
+        string department,
+        string eventType,
+        string location,
+        address indexed actor
+    );
     event ActorAuthorizationUpdated(address indexed actor, bool authorized);
 
     modifier onlyOwner() {
@@ -45,41 +64,70 @@ contract AtlasSupplyChain {
         emit ActorAuthorizationUpdated(actor, authorized);
     }
 
-    function registerProduct(string memory serialId, string memory manufacturer) external onlyAuthorized {
+    function registerProduct(
+        string memory serialId,
+        string memory manufacturerName,
+        string memory batchNumber,
+        string memory manufactureDate
+    ) external onlyAuthorized {
         require(bytes(serialId).length > 0, "Serial required");
+        require(bytes(batchNumber).length > 0, "Batch required");
+        require(bytes(manufactureDate).length > 0, "Manufacture date required");
         require(!products[serialId].exists, "Product exists");
 
         Product storage product = products[serialId];
         product.serialId = serialId;
-        product.manufacturer = manufacturer;
+        product.manufacturerName = manufacturerName;
+        product.batchNumber = batchNumber;
+        product.manufactureDate = manufactureDate;
         product.exists = true;
         product.events.push(
             EventRecord({
-                role: "Manufacturer",
-                location: "Factory",
+                department: "Manufacturer",
+                eventType: "REGISTERED",
+                location: manufacturerName,
+                source: manufacturerName,
+                destination: manufacturerName,
+                actorId: "manufacturer-node-1",
+                notes: batchNumber,
                 timestamp: block.timestamp,
                 actor: msg.sender
             })
         );
 
-        emit ProductRegistered(serialId, manufacturer, msg.sender);
+        emit ProductRegistered(serialId, manufacturerName, batchNumber, manufactureDate, msg.sender);
     }
 
-    function transferProduct(string memory serialId, string memory role, string memory location) external onlyAuthorized {
+    function addLifecycleEvent(
+        string memory serialId,
+        string memory department,
+        string memory eventType,
+        string memory location,
+        string memory source,
+        string memory destination,
+        string memory actorId,
+        string memory notes
+    ) external onlyAuthorized {
         require(products[serialId].exists, "Unknown product");
-        require(bytes(role).length > 0, "Role required");
+        require(bytes(department).length > 0, "Department required");
+        require(bytes(eventType).length > 0, "Event type required");
         require(bytes(location).length > 0, "Location required");
 
         products[serialId].events.push(
             EventRecord({
-                role: role,
+                department: department,
+                eventType: eventType,
                 location: location,
+                source: source,
+                destination: destination,
+                actorId: actorId,
+                notes: notes,
                 timestamp: block.timestamp,
                 actor: msg.sender
             })
         );
 
-        emit ProductTransferred(serialId, role, location, msg.sender);
+        emit LifecycleEventRecorded(serialId, department, eventType, location, msg.sender);
     }
 
     function getProduct(string memory serialId)
@@ -87,13 +135,22 @@ contract AtlasSupplyChain {
         view
         returns (
             string memory productSerialId,
-            string memory manufacturer,
+            string memory manufacturerName,
+            string memory batchNumber,
+            string memory manufactureDate,
             bool exists,
             uint256 eventCount
         )
     {
         Product storage product = products[serialId];
-        return (product.serialId, product.manufacturer, product.exists, product.events.length);
+        return (
+            product.serialId,
+            product.manufacturerName,
+            product.batchNumber,
+            product.manufactureDate,
+            product.exists,
+            product.events.length
+        );
     }
 
     function getProductHistory(string memory serialId) external view returns (EventRecord[] memory) {
@@ -101,4 +158,3 @@ contract AtlasSupplyChain {
         return products[serialId].events;
     }
 }
-

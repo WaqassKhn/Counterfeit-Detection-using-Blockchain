@@ -4,7 +4,8 @@ function getAlerts(req, res) {
   res.json({
     alerts: alertStore.getAlerts(),
     trend: alertStore.getTrend(),
-    riskScores: alertStore.getRiskScores()
+    riskScores: alertStore.getRiskScores(),
+    authenticityStats: alertStore.getAuthenticityStats()
   });
 }
 
@@ -16,4 +17,3 @@ module.exports = {
   getAlerts,
   getGraph
 };
-
