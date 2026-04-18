@@ -1,5 +1,5 @@
 # Atlas Corp Counterfeit Prevention Network
-
+# Video Link: https://drive.google.com/file/d/142zPAwGgf17adtQEdkUX6eYRjPt2ulMj/view?usp=sharing
 Atlas Corp needs a supply-chain system that does two things at the same time: keep a tamper-resistant lifecycle record for each spare part, and make suspicious movement visible before a fake part reaches a customer.
 
 This project is a permissioned blockchain-based tracking platform with role-gated operational portals, multi-stop logistics support, dummy NFC extraction, anomaly detection, and a customer-facing verification flow.
